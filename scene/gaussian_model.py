@@ -235,13 +235,13 @@ class GaussianModel:
     def voxelize_sample(self, data=None, voxel_size=0.01):
         np.random.shuffle(data)
         data = np.unique(np.round(data / voxel_size), axis=0) * voxel_size
+        # data = np.round(data / voxel_size) * voxel_size
 
         return data
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
         self.spatial_lr_scale = spatial_lr_scale
         points = pcd.points[:: self.ratio]
-
         if self.voxel_size <= 0:
             init_points = torch.tensor(points).float().cuda()
             init_dist = distCUDA2(init_points).float().cuda()

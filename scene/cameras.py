@@ -84,6 +84,9 @@ class Camera(nn.Module):
         ).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
 
+    def extra_repr(self) -> str:
+        return f"Camera {self.uid}: {self.image_name} ({self.image_width}x{self.image_height}) FoVx: {self.FoVx}, FoVy: {self.FoVy}, znear: {self.znear}, zfar: {self.zfar})"
+
 
 class MiniCam:
     def __init__(
