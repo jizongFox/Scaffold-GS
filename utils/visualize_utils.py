@@ -45,10 +45,13 @@ def add_label_centered(
 
     return img
 
+
 def tensor2rgbjet(
     tensor: th.Tensor, x_max: Optional[float] = None, x_min: Optional[float] = None
 ) -> np.ndarray:
-    return cv2.applyColorMap(tensor2rgb(tensor, x_max=x_max, x_min=x_min), cv2.COLORMAP_JET)
+    return cv2.applyColorMap(
+        tensor2rgb(tensor, x_max=x_max, x_min=x_min), cv2.COLORMAP_JET
+    )
 
 
 def tensor2rgb(
@@ -111,7 +114,8 @@ def tensor2image(
         img = add_label_centered(img, label)
 
     return img
-    
+
+
 # d: b x 1 x H x W
 # screenCoords: b x 2 x H X W
 # focal: b x 2 x 2
@@ -122,6 +126,7 @@ def depthImgToPosCam_Batched(d, screenCoords, focal, princpt):
     x = (d * p[:, 0:1, :, :]) / focal[:, 0:1, 0, None, None]
     y = (d * p[:, 1:2, :, :]) / focal[:, 1:2, 1, None, None]
     return th.cat([x, y, d], dim=1)
+
 
 # p: b x 3 x H x W
 # out: b x 3 x H x W
@@ -135,14 +140,19 @@ def computeNormalsFromPosCam_Batched(p):
     norm[norm < 1e-5] = 1  # Can not backprop through this
     return -n / norm
 
+
 def visualize_normal(inputs, depth_p):
     # Normals
-    uv = th.stack(
-        th.meshgrid(
-            th.arange(depth_p.shape[2]), th.arange(depth_p.shape[1]), indexing="xy"
-        ),
-        dim=0,
-    )[None].float().cuda()
+    uv = (
+        th.stack(
+            th.meshgrid(
+                th.arange(depth_p.shape[2]), th.arange(depth_p.shape[1]), indexing="xy"
+            ),
+            dim=0,
+        )[None]
+        .float()
+        .cuda()
+    )
     position = depthImgToPosCam_Batched(
         depth_p[None, ...], uv, inputs["focal"], inputs["princpt"]
     )
