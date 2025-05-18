@@ -12,11 +12,26 @@
 from argparse import ArgumentParser, Namespace
 import sys
 import os
+from dataclasses import dataclass
 
 
+@dataclass()
 class GroupParams:
-    pass
 
+    def __str__(self):
+        lines = [self.__class__.__name__ + ":"]
+        for key, val in vars(self).items():
+            if isinstance(val, tuple):
+                flattened_val = "["
+                for item in val:
+                    flattened_val += str(item) + "\n"
+                flattened_val = flattened_val.rstrip("\n")
+                val = flattened_val + "]"
+            lines += f"{key}: {str(val)}".split("\n")
+        return "\n    ".join(lines)
+
+    def __repr__(self):
+        return self.__str__()
 
 class ParamGroup:
     def __init__(self, parser: ArgumentParser, name: str, fill_none=False):
