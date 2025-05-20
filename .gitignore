@@ -17,3 +17,4 @@ screenshots
 *.so
 .idea
 venv
+.egg-info
