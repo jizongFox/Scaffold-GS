@@ -9,13 +9,19 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import json
 import os
-import glob
 import sys
-from PIL import Image
-from tqdm import tqdm
+from pathlib import Path
 from typing import NamedTuple
-from colorama import Fore, init, Style
+
+import numpy as np
+import rich
+from PIL import Image
+from colorama import Fore, Style
+from plyfile import PlyData, PlyElement
+from tqdm import tqdm
+
 from scene.colmap_loader import (
     read_extrinsics_text,
     read_intrinsics_text,
@@ -26,10 +32,6 @@ from scene.colmap_loader import (
     read_points3D_text,
 )
 from utils.graphics_utils import getWorld2View2, focal2fov, fov2focal
-import numpy as np
-import json
-from pathlib import Path
-from plyfile import PlyData, PlyElement
 
 try:
     import laspy
@@ -51,6 +53,10 @@ class CameraInfo(NamedTuple):
     image_name: str
     width: int
     height: int
+    focal_x: float
+    focal_y: float
+    cx: float
+    cy: float
 
 
 class SceneInfo(NamedTuple):
@@ -107,11 +113,15 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
+            raise NotImplementedError()
         elif intr.model == "PINHOLE":
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+            cx = intr.params[2]
+            cy = intr.params[3]
+
         else:
             assert (
                 False
@@ -119,8 +129,8 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
 
         # print(f'FovX: {FovX}, FovY: {FovY}')
 
-        image_path = os.path.join(images_folder, os.path.basename(extr.name))
-        image_name = os.path.basename(image_path).split(".")[0]
+        image_path = os.path.join(images_folder, extr.name)
+        image_name = extr.name.split(".")[0]
         image = Image.open(image_path)
 
         # print(f'image: {image.size}')
@@ -136,6 +146,10 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             image_name=image_name,
             width=width,
             height=height,
+            focal_x=focal_length_x,
+            focal_y=focal_length_y,
+            cx=cx,
+            cy=cy,
         )
         cam_infos.append(cam_info)
     sys.stdout.write("\n")
@@ -152,7 +166,10 @@ def fetchPly(path):
         )
     except:
         colors = np.random.rand(positions.shape[0], positions.shape[1])
-    normals = np.vstack([vertices["nx"], vertices["ny"], vertices["nz"]]).T
+    try:
+        normals = np.vstack([vertices["nx"], vertices["ny"], vertices["nz"]]).T
+    except ValueError:
+        normals = np.zeros_like(positions)
     return BasicPointCloud(points=positions, colors=colors, normals=normals)
 
 
@@ -182,7 +199,9 @@ def storePly(path, xyz, rgb):
     ply_data.write(path)
 
 
-def readColmapSceneInfo(path, images, eval, lod, llffhold=8):
+def readColmapSceneInfo(
+    path, images, eval, lod, llffhold=8, *, ply_path: str | None = None
+):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -226,8 +245,10 @@ def readColmapSceneInfo(path, images, eval, lod, llffhold=8):
         test_cam_infos = []
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
-
-    ply_path = os.path.join(path, "sparse/0/points3D.ply")
+    breakpoint()
+    rich.print(f"ply_path: {ply_path}")
+    if ply_path is None:
+        ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
     if not os.path.exists(ply_path):
@@ -240,7 +261,7 @@ def readColmapSceneInfo(path, images, eval, lod, llffhold=8):
             xyz, rgb, _ = read_points3D_text(txt_path)
         storePly(ply_path, xyz, rgb)
     # try:
-    print(f"start fetching data from ply file")
+    print(f"start fetching data from ply file: {ply_path}")
     pcd = fetchPly(ply_path)
     # except:
     #     pcd = None
@@ -390,7 +411,12 @@ def readNerfSyntheticInfo(
     nerf_normalization = getNerfppNorm(train_cam_infos)
     if ply_path is None:
         ply_path = os.path.join(path, "points3d.ply")
+    rich.print(f"ply_path: {ply_path}")
     if not os.path.exists(ply_path):
+        raise RuntimeError(
+            f"ply_path does not exist: {ply_path}. "
+            f"Please run blender to generate the point cloud."
+        )
         # Since this data set has no colmap data, we start with random points
         num_pts = 10_000
         print(f"Generating random point cloud ({num_pts})...")

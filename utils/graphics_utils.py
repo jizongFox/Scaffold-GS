@@ -8,6 +8,7 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+import os
 
 import torch
 import math
@@ -74,6 +75,99 @@ def getProjectionMatrix(znear, zfar, fovX, fovY):
     P[2, 2] = z_sign * zfar / (zfar - znear)
     P[2, 3] = -(zfar * znear) / (zfar - znear)
     return P
+
+
+def getProjectionMatrixShift(
+    *, znear, zfar, focal_x, focal_y, cx, cy, width, height, device: str | torch.device
+):
+    # # fov is a report between the pixel and the true z focal length in meter.
+    # tanHalfFovY = math.tan((fovY / 2))
+    # tanHalfFovX = math.tan((fovX / 2))
+    #
+    # # the origin at center of image plane
+    # top = tanHalfFovY * znear
+    # bottom = -top
+    # right = tanHalfFovX * znear
+    # left = -right
+    #
+    # # shift the frame window due to the non-zero principle point offsets
+    # # todo: remains to verify.
+    # offset_x = cx - (width / 2)
+    # offset_x = (offset_x / focal_x) * znear
+    # offset_y = cy - (height / 2)
+    # offset_y = (offset_y / focal_y) * znear
+    #
+    # top = top + offset_y
+    # left = left + offset_x
+    # right = right + offset_x
+    # bottom = bottom + offset_y
+    #
+    # P = torch.zeros(4, 4, device=device)
+    #
+    # z_sign = 1.0
+    #
+    # P[0, 0] = 2.0 * znear / (right - left)
+    # P[1, 1] = 2.0 * znear / (top - bottom)
+    # P[0, 2] = (right + left) / (right - left)
+    # P[1, 2] = (top + bottom) / (top - bottom)
+    # P[3, 2] = z_sign
+    # P[2, 2] = z_sign * zfar / (zfar - znear)
+    # P[2, 3] = -(zfar * znear) / (zfar - znear)
+    #
+    W = width
+    H = height
+    fx = focal_x
+    fy = focal_y
+    left = ((2 * cx - W) / W - 1.0) * W / 2.0
+    right = ((2 * cx - W) / W + 1.0) * W / 2.0
+    top = ((2 * cy - H) / H + 1.0) * H / 2.0
+    bottom = ((2 * cy - H) / H - 1.0) * H / 2.0
+    left = znear / fx * left
+    right = znear / fx * right
+    top = znear / fy * top
+    bottom = znear / fy * bottom
+    P2 = torch.zeros(4, 4, device=device)
+
+    z_sign = 1.0
+
+    P2[0, 0] = 2.0 * znear / (right - left)
+    P2[1, 1] = 2.0 * znear / (top - bottom)
+    P2[0, 2] = (right + left) / (right - left)
+    P2[1, 2] = (top + bottom) / (top - bottom)
+    P2[3, 2] = z_sign
+    P2[2, 2] = z_sign * zfar / (zfar - znear)
+    P2[2, 3] = -(zfar * znear) / (zfar - znear)
+    if not os.environ.get("DEBUG_PROJECTION", 0) == "1":
+        return P2
+    breakpoint()
+
+    # try
+    # right = ((2 * cx - W) / W - 1.0) * W / 2.0
+    # left = ((2 * cx - W) / W + 1.0) * W / 2.0
+    # bottom = ((2 * cy - H) / H + 1.0) * H / 2.0
+    # top = ((2 * cy - H) / H - 1.0) * H / 2.0
+    # right = znear / fx * right
+    # left = znear / fx * left
+    # top = znear / fy * top
+    # bottom = znear / fy * bottom
+    left = -cx * znear / fx
+    right = (W - cx) * znear / fx
+    bottom = -cy * znear / fy
+    top = (H - cy) * znear / fy
+
+    P3 = torch.zeros(4, 4, device=device)
+
+    z_sign = 1.0
+
+    P3[0, 0] = 2.0 * znear / (right - left)
+    P3[1, 1] = 2.0 * znear / (top - bottom)
+    P3[0, 2] = (right + left) / (right - left)
+    P3[1, 2] = (top + bottom) / (top - bottom)
+    P3[3, 2] = z_sign
+    P3[2, 2] = z_sign * zfar / (zfar - znear)
+    P3[2, 3] = -(zfar * znear) / (zfar - znear)
+
+    return P3
 
 
 def fov2focal(fov, pixels):

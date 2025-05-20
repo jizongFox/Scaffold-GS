@@ -17,7 +17,6 @@ from dataclasses import dataclass
 
 @dataclass()
 class GroupParams:
-
     def __str__(self):
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
@@ -32,6 +31,7 @@ class GroupParams:
 
     def __repr__(self):
         return self.__str__()
+
 
 class ParamGroup:
     def __init__(self, parser: ArgumentParser, name: str, fill_none=False):
@@ -68,7 +68,7 @@ class ParamGroup:
 
 class ModelParams(ParamGroup):
     def __init__(self, parser, sentinel=False):
-        self.sh_degree = 3
+        self.sh_degree = 0
         self.feat_dim = 32
         self.n_offsets = 10
         self.voxel_size = 0.001  # if voxel_size<=0, using 1nn dist
@@ -79,6 +79,7 @@ class ModelParams(ParamGroup):
         self.use_feat_bank = False
         self._source_path = ""
         self._model_path = ""
+        self.ply_path = ""
         self._images = "images"
         self._resolution = -1
         self._white_background = False

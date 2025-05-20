@@ -10,9 +10,12 @@
 #
 
 import os
+import subprocess
+
 import numpy as np
 
-import subprocess
+from scene.cameras import Camera
+from utils.prefilter_voxel import prefilter_voxel_pytorch
 
 cmd = "nvidia-smi -q -d Memory |grep -A4 GPU|grep Used"
 result = (
@@ -61,29 +64,6 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
     print("not found tf board")
-
-
-def saveRuntimeCode(dst: str) -> None:
-    additionalIgnorePatterns = [".git", ".gitignore"]
-    ignorePatterns = set()
-    ROOT = "."
-    with open(os.path.join(ROOT, ".gitignore")) as gitIgnoreFile:
-        for line in gitIgnoreFile:
-            if not line.startswith("#"):
-                if line.endswith("\n"):
-                    line = line[:-1]
-                if line.endswith("/"):
-                    line = line[:-1]
-                ignorePatterns.add(line)
-    ignorePatterns = list(ignorePatterns)
-    for additionalPattern in additionalIgnorePatterns:
-        ignorePatterns.append(additionalPattern)
-
-    log_dir = pathlib.Path(__file__).parent.resolve()
-
-    shutil.copytree(log_dir, dst, ignore=shutil.ignore_patterns(*ignorePatterns))
-
-    print("Backup Finished!")
 
 
 def training(
@@ -174,13 +154,67 @@ def training(
         # Pick a random Camera
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
-        viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack) - 1))
+        #
+        # centers = [c.camera_center for c in viewpoint_stack]
+        # centers = torch.stack(centers, dim=0)
+        # import plotly.graph_objects as go
+        #
+        # fig = go.Figure(
+        #     data=[
+        #         go.Scatter3d(
+        #             x=centers[:, 0].cpu().numpy(),
+        #             y=centers[:, 1].cpu().numpy(),
+        #             z=centers[:, 2].cpu().numpy(),
+        #             mode="markers",
+        #             marker=dict(
+        #                 size=5,
+        #                 color="rgba(217, 217, 217, 0.14)",
+        #                 line=dict(color="rgba(217, 217, 217, 0.14)", width=0.5),
+        #                 opacity=0.5,
+        #             ),
+        #         )
+        #     ]
+        # )
+        # camera_direction = [c.cam2world[:3, 2] for c in viewpoint_stack]
+        # camera_direction = torch.stack(camera_direction, dim=0)
+        # camera_end_point = centers + camera_direction * 0.2
+        # camera_start_point = centers
+        #
+        # for i in range(len(camera_start_point)):
+        #     fig.add_trace(
+        #         go.Scatter3d(
+        #             x=[
+        #                 camera_start_point[i, 0].cpu().detach(),
+        #                 camera_end_point[i, 0].cpu().detach(),
+        #             ],
+        #             y=[
+        #                 camera_start_point[i, 1].cpu().detach(),
+        #                 camera_end_point[i, 1].cpu().detach(),
+        #             ],
+        #             z=[
+        #                 camera_start_point[i, 2].cpu().detach(),
+        #                 camera_end_point[i, 2].cpu().detach(),
+        #             ],
+        #             mode="lines",
+        #             line=dict(color="black", width=2),
+        #         )
+        #     )
+        # fig.update_layout(scene=dict(aspectmode="data"))
+        # fig.show()
+        # exit()
 
+        viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack) - 1))
+        viewpoint_cam: Camera
         # Render
         if (iteration - 1) == debug_from:
             pipe.debug = True
 
-        voxel_visible_mask = prefilter_voxel(viewpoint_cam, gaussians, pipe, background)
+        # voxel_visible_mask = prefilter_voxel(viewpoint_cam, gaussians, pipe, background)
+        prefilter_output = prefilter_voxel_pytorch(
+            viewpoint_cam, gaussians, near_plane=0.2, far_plane=1e8, eps2d=0.3
+        )
+        voxel_visible_mask = prefilter_output.validate_mask
+
         retain_grad = iteration < opt.update_until and iteration >= 0
         render_pkg = render(
             viewpoint_cam,
@@ -800,11 +834,6 @@ if __name__ == "__main__":
         os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
         os.system("echo $CUDA_VISIBLE_DEVICES")
         logger.info(f"using GPU {args.gpu}")
-
-    try:
-        saveRuntimeCode(os.path.join(args.model_path, "backup"))
-    except:
-        logger.info(f"save code failed~")
 
     dataset = args.source_path.split("/")[-1]
     exp_name = args.model_path.split("/")[-2]

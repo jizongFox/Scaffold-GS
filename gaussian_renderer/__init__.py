@@ -118,6 +118,7 @@ def generate_neural_gaussians(
     )
 
     # post-process cov
+    # the first 3 values of scaling are used for scaling K*3 offset, while the last 3 values are used for scaling K*3 anchor
     scaling = scaling_repeat[:, 3:] * torch.sigmoid(
         scale_rot[:, :3]
     )  # * (1+torch.sigmoid(repeat_dist))
@@ -126,7 +127,6 @@ def generate_neural_gaussians(
     # post-process offsets to get centers for gaussians
     offsets = offsets * scaling_repeat[:, :3]
     xyz = repeat_anchor + offsets
-
     if is_training:
         return xyz, color, opacity, scaling, rot, neural_opacity, mask
     else:
@@ -192,7 +192,7 @@ def render(
         scale_modifier=scaling_modifier,
         viewmatrix=viewpoint_camera.world_view_transform,
         projmatrix=viewpoint_camera.full_proj_transform,
-        sh_degree=1,
+        sh_degree=0,
         campos=viewpoint_camera.camera_center,
         prefiltered=False,
         debug=pipe.debug,
@@ -222,6 +222,9 @@ def render(
             "selection_mask": mask,
             "neural_opacity": neural_opacity,
             "scaling": scaling,
+            "xyz": xyz,
+            "color": color,
+            "opacity": opacity,
         }
     else:
         return {
@@ -229,6 +232,9 @@ def render(
             "viewspace_points": screenspace_points,
             "visibility_filter": radii > 0,
             "radii": radii,
+            "xyz": xyz,
+            "color": color,
+            "opacity": opacity,
         }
 
 

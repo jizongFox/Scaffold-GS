@@ -19,10 +19,12 @@ from utils.graphics_utils import fov2focal
 WARNED = False
 
 
-def loadCam(args, id, cam_info, resolution_scale):
+def loadCam(args, id, cam_info, resolution_scale=1.0):
+    assert resolution_scale == 1, "Resolution scale should be 1 for now"
     orig_w, orig_h = cam_info.image.size
 
     if args.resolution in [1, 2, 4, 8]:
+        scale = args.resolution
         resolution = round(orig_w / (resolution_scale * args.resolution)), round(
             orig_h / (resolution_scale * args.resolution)
         )
@@ -54,6 +56,10 @@ def loadCam(args, id, cam_info, resolution_scale):
     if resized_image_rgb.shape[1] == 4:
         loaded_mask = resized_image_rgb[3:4, ...]
 
+    from scene.dataset_readers import CameraInfo
+
+    cam_info: CameraInfo
+
     return Camera(
         colmap_id=cam_info.uid,
         R=cam_info.R,
@@ -65,10 +71,16 @@ def loadCam(args, id, cam_info, resolution_scale):
         image_name=cam_info.image_name,
         uid=id,
         data_device=args.data_device,
+        cx=cam_info.cx / scale,
+        cy=cam_info.cy / scale,
+        fx=cam_info.focal_x / scale,
+        fy=cam_info.focal_y / scale,
     )
 
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+    assert resolution_scale == 1, "Resolution scale should be 1 for now"
+
     def process_camera(args_id_cam):
         args, id, cam_info = args_id_cam
         return loadCam(args, id, cam_info, resolution_scale)

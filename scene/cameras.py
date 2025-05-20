@@ -9,10 +9,11 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import numpy as np
 import torch
 from torch import nn
-import numpy as np
-from utils.graphics_utils import getWorld2View2, getProjectionMatrix
+
+from utils.graphics_utils import getWorld2View2, getProjectionMatrixShift
 
 
 class Camera(nn.Module):
@@ -30,6 +31,11 @@ class Camera(nn.Module):
         trans=np.array([0.0, 0.0, 0.0]),
         scale=1.0,
         data_device="cuda",
+        *,
+        cx: float,
+        cy: float,
+        fx: float,
+        fy: float,
     ):
         super(Camera, self).__init__()
 
@@ -40,6 +46,10 @@ class Camera(nn.Module):
         self.FoVx = FoVx
         self.FoVy = FoVy
         self.image_name = image_name
+        self.cx = cx
+        self.cy = cy
+        self.fx = fx
+        self.fy = fy
 
         try:
             self.data_device = torch.device(data_device)
@@ -70,9 +80,24 @@ class Camera(nn.Module):
         self.world_view_transform = (
             torch.tensor(getWorld2View2(R, T, trans, scale)).transpose(0, 1).cuda()
         )
+        # self.projection_matrix = (
+        #     getProjectionMatrix(
+        #         znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy
+        #     )
+        #     .transpose(0, 1)
+        #     .cuda()
+        # )
         self.projection_matrix = (
-            getProjectionMatrix(
-                znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy
+            getProjectionMatrixShift(
+                znear=self.znear,
+                zfar=self.zfar,
+                focal_x=self.fx,
+                focal_y=self.fy,
+                cx=self.cx,
+                cy=self.cy,
+                width=self.image_width,
+                height=self.image_height,
+                device=self.data_device,
             )
             .transpose(0, 1)
             .cuda()
@@ -83,6 +108,26 @@ class Camera(nn.Module):
             )
         ).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
+
+    @property
+    def world2cam(self):
+        return self.world_view_transform.transpose(0, 1)
+
+    @property
+    def cam2world(self):
+        return self.world2cam.inverse()
+
+    @property
+    def intrinsic_matrix(self):
+        return torch.tensor(
+            [[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]],
+            dtype=torch.float32,
+            device=self.data_device,
+        )
+
+    @property
+    def camera_center2(self):
+        return self.cam2world[:3, 3]
 
     def extra_repr(self) -> str:
         return f"Camera {self.uid}: {self.image_name} ({self.image_width}x{self.image_height}) FoVx: {self.FoVx}, FoVy: {self.FoVy}, znear: {self.znear}, zfar: {self.zfar})"

@@ -225,6 +225,9 @@ class GaussianModel:
 
     @property
     def get_opacity(self):
+        # this is never used
+        raise NotImplementedError()
+
         return self.opacity_activation(self._opacity)
 
     def get_covariance(self, scaling_modifier=1):
@@ -233,10 +236,13 @@ class GaussianModel:
         )
 
     def voxelize_sample(self, data=None, voxel_size=0.01):
+        print(f"Voxelizing with voxel_size: {voxel_size}")
+        print(f"Number of points: {data.shape[0]}")
         np.random.shuffle(data)
         data = np.unique(np.round(data / voxel_size), axis=0) * voxel_size
-        # data = np.round(data / voxel_size) * voxel_size
-
+        # data_new = np.round(data / voxel_size) * voxel_size  # 四舍五入
+        # error = data - data_new
+        print(f"Number of unique points: {data.shape[0]}")
         return data
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
@@ -255,19 +261,27 @@ class GaussianModel:
 
         points = self.voxelize_sample(points, voxel_size=self.voxel_size)
         fused_point_cloud = torch.tensor(np.asarray(points)).float().cuda()
-        offsets = (
-            torch.zeros((fused_point_cloud.shape[0], self.n_offsets, 3)).float().cuda()
+        num_fused_pcd = len(fused_point_cloud)
+        offsets = torch.zeros(
+            (num_fused_pcd, self.n_offsets, 3),
+            device="cuda",
+            dtype=torch.float,
         )
-        anchors_feat = (
-            torch.zeros((fused_point_cloud.shape[0], self.feat_dim)).float().cuda()
+        anchors_feat = torch.randn(
+            (fused_point_cloud.shape[0], self.feat_dim),
+            device="cuda",
+            dtype=torch.float,
         )
+        anchors_feat = anchors_feat * 1e-3
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
         dist2 = torch.clamp_min(distCUDA2(fused_point_cloud).float().cuda(), 0.0000001)
         scales = torch.log(torch.sqrt(dist2))[..., None].repeat(1, 6)
 
-        rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
+        rots = torch.zeros(
+            (fused_point_cloud.shape[0], 4), device="cuda", dtype=torch.float
+        )
         rots[:, 0] = 1
 
         opacities = inverse_sigmoid(
