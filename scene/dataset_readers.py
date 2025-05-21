@@ -245,9 +245,8 @@ def readColmapSceneInfo(
         test_cam_infos = []
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
-    breakpoint()
     rich.print(f"ply_path: {ply_path}")
-    if ply_path is None:
+    if ply_path is None or ply_path == "":
         ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
